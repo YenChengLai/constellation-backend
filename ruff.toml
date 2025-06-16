@@ -1,0 +1,183 @@
+# Ruff config file: common config
+# https://beta.ruff.rs/docs/configuration/
+# https://beta.ruff.rs/docs/settings/
+
+line-length = 120
+indent-width = 4
+target-version = "py312"
+fix = false              # no autofix unless --fix flag is set
+
+# A list of file patterns to exclude from linting.
+respect-gitignore = true
+force-exclude = true
+exclude = [
+    ".bazel",
+    ".bin",
+    ".git",
+    ".gitlab",
+    ".linting",
+    ".pylib",
+    ".venv",
+    ".vscode",
+    "**/protobuf/**/*.{py,pyi}",
+]
+namespace-packages = ["apps", "libs", "projects"]
+
+[format]
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+exclude = []
+indent-style = "space"
+line-ending = "lf"
+preview = false
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+[lint]
+#
+# Rules
+# https://beta.ruff.rs/docs/rules/
+#
+select = [
+    "F",     # Pyflakes (F)
+    "E",     # pycodestyle (E)
+    "W",     # pycodestyle (W)
+    "I",     # isort (I)
+    "UP",    # pyupgrade (UP)
+    "YTT",   # flake8-2020 (YTT)
+    "ANN",   # flake8-annotations (ANN)
+    "ASYNC", # flake8-async (ASYNC)
+    "S",     # flake8-bandit (S)
+    "B",     # flake8-bugbear (B)
+    "A",     # flake8-builtins (A)
+    "COM",   # flake8-commas (COM)
+    "C4",    # flake8-comprehensions (C4)
+    "FA",    # flake8-future-annotations (FA)
+    "ISC",   # flake8-implicit-str-concat (ISC)
+    "ICN",   # flake8-import-conventions (ICN)
+    "LOG",   # flake8-logging (LOG)
+    "G",     # flake8-logging-format (G)
+    "PIE",   # flake8-pie (PIE)
+    "RSE",   # flake8-raise (RSE)
+    "RET",   # flake8-return (RET)
+    "SLF",   # flake8-self (SLF)
+    "SLOT",  # flake8-slots (SLOT)
+    "SIM",   # flake8-simplify (SIM)
+    "TID",   # flake8-tidy-imports (TID)
+    "TC",    # flake8-type-checking (TC)
+    "INT",   # flake8-gettext (INT)
+    "PD",    # pandas-vet (PD)
+    "PGH",   # pygrep-hooks (PGH)
+    "PLC",   # Pylint - Convention (PLC)
+    "PLE",   # Pylint - Error (PLE)
+    "PLW",   # Pylint - Warning (PLW)
+    "FLY",   # flynt (FLY)
+    "NPY",   # NumPy-specific rules (NPY)
+    "FAST",  # FastAPI (FAST)
+    "AIR",   # Airflow (AIR)
+    "PERF",  # Perflint (PERF)
+    "FURB",  # refurb (FURB)
+    "RUF",   # Ruff-specific rules (RUF)
+]
+fixable = [
+    "F",     # Pyflakes (F)
+    "E",     # pycodestyle (E)
+    "W",     # pycodestyle (W)
+    "I",     # isort (I)
+    "UP",    # pyupgrade (UP)
+    "YTT",   # flake8-2020 (YTT)
+    "ANN",   # flake8-annotations (ANN)
+    "ASYNC", # flake8-async (ASYNC)
+    "S",     # flake8-bandit (S)
+    "B",     # flake8-bugbear (B)
+    "A",     # flake8-builtins (A)
+    "COM",   # flake8-commas (COM)
+    "C4",    # flake8-comprehensions (C4)
+    "FA",    # flake8-future-annotations (FA)
+    "ISC",   # flake8-implicit-str-concat (ISC)
+    "ICN",   # flake8-import-conventions (ICN)
+    "LOG",   # flake8-logging (LOG)
+    "G",     # flake8-logging-format (G)
+    "PIE",   # flake8-pie (PIE)
+    "RSE",   # flake8-raise (RSE)
+    "RET",   # flake8-return (RET)
+    "SLF",   # flake8-self (SLF)
+    "SLOT",  # flake8-slots (SLOT)
+    "SIM",   # flake8-simplify (SIM)
+    "TID",   # flake8-tidy-imports (TID)
+    "TC",    # flake8-type-checking (TC)
+    "INT",   # flake8-gettext (INT)
+    "PD",    # pandas-vet (PD)
+    "PGH",   # pygrep-hooks (PGH)
+    "PLC",   # Pylint - Convention (PLC)
+    "PLE",   # Pylint - Error (PLE)
+    "PLW",   # Pylint - Warning (PLW)
+    "FLY",   # flynt (FLY)
+    "NPY",   # NumPy-specific rules (NPY)
+    "FAST",  # FastAPI (FAST)
+    "AIR",   # Airflow (AIR)
+    "PERF",  # Perflint (PERF)
+    "FURB",  # refurb (FURB)
+    "RUF",   # Ruff-specific rules (RUF)
+]
+ignore = [
+    # ruff-format conflicting rules: https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+    "W191",   # tab-indentation
+    "E111",   # indentation-with-invalid-multiple
+    "E114",   # indentation-with-invalid-multiple-comment
+    "E117",   # over-indented
+    "D206",   # indent-with-spaces
+    "D300",   # triple-single-quotes
+    "Q000",   # bad-quotes-inline-string
+    "Q001",   # bad-quotes-multiline-string
+    "Q002",   # bad-quotes-docstring
+    "Q003",   # avoidable-escaped-quote
+    "COM812", # missing-trailing-comma
+    "COM819", # prohibited-trailing-comma
+    "ISC001", # single-line-implicit-string-concatenation
+    "ISC002", # multi-line-implicit-string-concatenation
+    "E501",   # line-too-long
+    # flake8-annotations (ANN)
+    "ANN002", # Missing type annotation for *{name}
+    "ANN003", # Missing type annotation for **{name}
+    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed in {name}
+    # flake8-import-conventions (ICN)
+    "ICN001", # {name} should be imported as {asname}
+    # flake8-bandit (S)
+    "S301", # pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue
+    "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "S314", # Using xml to parse untrusted data is known to be vulnerable to XML attacks; use defusedxml equivalents
+    "S320", # Using lxml to parse untrusted data is known to be vulnerable to XML attacks
+    "S324", # Probable use of insecure hash functions in hashlib: {string}
+    # flake8-bugbear (B)
+    "S104", # Possible binding to all interfaces
+    "B008", # Do not perform function call {name} in argument defaults
+    "B009", # Do not call getattr with a constant attribute value. It is not any safer than normal property access.
+    # flake8-type-checking (TC)
+    "TC001", # Move application import {} into a type-checking block
+    "TC002", # Move third-party import {} into a type-checking block
+    "TC003", # Move standard library import {} into a type-checking block
+    "TC004", # Move import {qualified_name} out of type-checking block. Import is used for more than type hinting.
+    "TC005", # Found empty type-checking block
+    # Pylint - Warning (PLW)
+    "PLW0603", # Using the global statement to update {name} is discouraged
+]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.isort]
+case-sensitive = false
+combine-as-imports = true
+detect-same-package = false
+force-single-line = false
+force-sort-within-sections = false
+force-wrap-aliases = false
+from-first = false
+length-sort = false
+length-sort-straight = false
+lines-after-imports = 2
+lines-between-types = 0
+no-sections = false
+order-by-type = true
+relative-imports-order = "furthest-to-closest"
+split-on-trailing-comma = false

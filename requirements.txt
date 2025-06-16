@@ -1,0 +1,15 @@
+bcrypt
+fastapi
+httpx
+motor
+pydantic
+pydantic[email]
+pylint
+pymongo
+pytest
+python-jose[cryptography]
+pytest
+pytest-asyncio
+requests
+ruff
+uvicorn
