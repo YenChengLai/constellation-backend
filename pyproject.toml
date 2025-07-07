@@ -1,0 +1,91 @@
+# File: pyproject.toml
+# This single file configures the entire Python project.
+
+[project]
+name = "constellation-backend"
+version = "0.1.0"
+description = "Backend monorepo for the Constellation life ecosystem."
+authors = [{ name = "YenChengLai", email = "your.email@example.com" }]
+requires-python = ">=3.12"
+
+# Core dependencies
+dependencies = [
+    "fastapi>=0.111.0",
+    "pydantic[email]>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "pymongo>=4.7.0",
+    "motor>=3.4.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "uvicorn>=0.30.0",
+    "uv>=0.1.40",
+]
+
+# Optional dependencies
+[project.optional-dependencies]
+auth = ["requests>=2.32.0"]
+expense = []
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+    "ruff>=0.4.8",
+    "pylint>=3.2.0",
+    "mypy>=1.10.0",
+]
+
+# --- Tool Configurations ---
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+namespace-packages = ["packages", "services"]
+# ... other ruff settings from our previous discussion ...
+
+[tool.ruff.lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+    "UP",
+    "YTT",
+    "ANN",
+    "ASYNC",
+    "S",
+    "B",
+    "A",
+    "COM",
+    "C4",
+    "FA",
+    "ISC",
+    "ICN",
+    "LOG",
+    "G",
+    "PIE",
+    "RSE",
+    "RET",
+    "SLF",
+    "SLOT",
+    "SIM",
+    "TID",
+    "TC",
+    "INT",
+    "PD",
+    "PGH",
+    "PLC",
+    "PLE",
+    "PLW",
+    "FLY",
+    "NPY",
+    "FAST",
+    "AIR",
+    "PERF",
+    "FURB",
+    "RUF",
+]
+ignore = ["E501"] # Starting with a simpler ignore list
+# ... you can add more ignores as needed ...
+
+[tool.ruff.lint.isort]
+known-first-party = ["packages", "services"]
