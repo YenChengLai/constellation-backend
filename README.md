@@ -34,6 +34,36 @@ constellation-backend/
     └── ...                   # Future services
 ```
 
+```mermaid
+graph TD
+    subgraph "constellation-backend (Monorepo)"
+        direction TB
+
+        subgraph "services/"
+            style services/ fill:#e6f3ff,stroke:#005cb3
+            AUTH["fa:fa-server auth-service"]
+        end
+
+        subgraph "packages/ (shared codes)"
+            style packages/ fill:#e6ffed,stroke:#00642e
+            SHARED_UTILS["fa:fa-cogs shared_utils\n (database.py)"]
+            SHARED_MODELS["fa:fa-cubes shared_models\n (models.py)"]
+        end
+
+        AUTH -->|imports| SHARED_UTILS
+        AUTH -->|imports| SHARED_MODELS
+    end
+
+    subgraph "External Dependencies"
+        DB["fa:fa-database MongoDB 
+         constellation_db"]
+    end
+
+    AUTH -->|connects to| DB
+
+    style AUTH fill:#fff0e6,stroke:#b35900
+```
+
 ## Tech Stack
 
 - **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
@@ -64,23 +94,11 @@ constellation-backend/
 
     ```bash
     uv venv
-    source .venv/bin/activate
+    source .venv/bin/activate  # For macOS / Linux
+    # .venv\Scripts\Activate.ps1 # For Windows PowerShell
     ```
 
-3. **Activate the virtual environment:**
-    - On macOS / Linux:
-
-        ```bash
-        source .venv/bin/activate
-        ```
-
-    - On Windows (PowerShell):
-
-        ```bash
-        .venv\Scripts\Activate.ps1
-        ```
-
-4. **Install all dependencies:**
+3. **Install all dependencies:**
     This command installs all core, service-specific, and development dependencies defined in `pyproject.toml`. The `-e` flag installs your local `packages` and `services` in "editable" mode, which is essential for monorepo development.
 
     ```bash
@@ -102,7 +120,7 @@ Then, edit the `.env` file with your specific settings (e.g., your database URI 
 |MONGODB_URI|The connection string for your MongoDB instance| `mongodb://localhost:27017`|
 |SECRET_KEY|A long, random string used for signing JWTs. <b>Keep this secret!</b>|`a-very-long-and-random-secret-string`|
 |ALGORITHM|The algorithm used for JWT signing. `HS256` is standard.|`admin@example.com`|
-|ADMIN_EMAIL|The email address designated as the super-admin for the system.|`admin@example.com`|
+|ADMIN_EMAIL|The email address designated as the super-admin for the system.|`HS256`|
 |EXPENSE_SERVICE_URL| The local URL for the expense service, used for inter-service communication (e.g., from the auth service).|`http://127.0.0.1:8001`|
 
 ### Running the Services
@@ -123,7 +141,7 @@ python -m uvicorn services.auth-service.app.main:app --reload --port 8001
 
 To run multiple services, open a new terminal for each one and run them on different ports:
 
-- Auth Service: uvicorn ... --port 8000
+- Auth Service: uvicorn ... --port 8001
 
 - Expense Service: uvicorn services.expense-service.app.main:app --reload --port 8001
 
@@ -131,7 +149,7 @@ To run multiple services, open a new terminal for each one and run them on diffe
 
 Here are the currently available endpoints.
 
-Serviced: `auth-service`
+Service: `auth-service`
 
 `GET /health`
 
