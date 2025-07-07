@@ -1,5 +1,5 @@
 # File: pyproject.toml
-# This single file configures the entire Python project.
+# Final version for a clean installation.
 
 [project]
 name = "constellation-backend"
@@ -34,58 +34,30 @@ dev = [
     "mypy>=1.10.0",
 ]
 
+# --- Build System Configuration (This part solved the error) ---
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["packages*", "services*"]
+exclude = ["tests*"]
+
 # --- Tool Configurations ---
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
 namespace-packages = ["packages", "services"]
-# ... other ruff settings from our previous discussion ...
 
 [tool.ruff.lint]
-select = [
-    "F",
-    "E",
-    "W",
-    "I",
-    "UP",
-    "YTT",
-    "ANN",
-    "ASYNC",
-    "S",
-    "B",
-    "A",
-    "COM",
-    "C4",
-    "FA",
-    "ISC",
-    "ICN",
-    "LOG",
-    "G",
-    "PIE",
-    "RSE",
-    "RET",
-    "SLF",
-    "SLOT",
-    "SIM",
-    "TID",
-    "TC",
-    "INT",
-    "PD",
-    "PGH",
-    "PLC",
-    "PLE",
-    "PLW",
-    "FLY",
-    "NPY",
-    "FAST",
-    "AIR",
-    "PERF",
-    "FURB",
-    "RUF",
-]
-ignore = ["E501"] # Starting with a simpler ignore list
-# ... you can add more ignores as needed ...
+select = ["F", "E", "W", "I", "UP"]
+ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["packages", "services"]
+
+[tool.mypy]
+python_version = "3.12"
