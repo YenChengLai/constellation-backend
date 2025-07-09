@@ -1,7 +1,5 @@
-# File: services/auth-service/app/config.py
-# Description: Corrected configuration for the Auth service.
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     """
@@ -12,6 +10,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     MONGODB_URI: str
+    TEST_MONGODB_URI: str | None = None  # Optional for testing
 
     # JWT Authentication
     SECRET_KEY: str

@@ -16,7 +16,7 @@ This is a Python monorepo managed with `uv`. It contains two primary top-level d
 - **`/services`**: Holds the individual, standalone microservices. Each service is a complete FastAPI application.
 - **`/packages`**: Contains shared code (libraries) used by one or more services, promoting the DRY (Don't Repeat Yourself) principle.
 
-```
+```text
 constellation-backend/
 │
 ├── .env.example              # Example environment variables file
@@ -29,8 +29,8 @@ constellation-backend/
 │   └── shared_utils/         # Shared utilities (e.g., database connection)
 │
 └── services/
-    ├── auth-service/         # Handles user authentication and identity
-    ├── expense-service/      # Handles expense tracking logic
+    ├── auth_service/         # Handles user authentication and identity
+    ├── expense_service/      # Handles expense tracking logic
     └── ...                   # Future services
 ```
 
@@ -41,7 +41,7 @@ graph TD
 
         subgraph "services/"
             style services/ fill:#e6f3ff,stroke:#005cb3
-            AUTH["fa:fa-server auth-service"]
+            AUTH["fa:fa-server auth_service"]
         end
 
         subgraph "packages/ (shared codes)"
@@ -71,7 +71,7 @@ graph TD
 - **Async Driver**: [Motor](https://motor.readthedocs.io/en/stable/)
 - **Package & Env Management**: [uv](https://github.com/astral-sh/uv)
 - **Linting & Formatting**: [Ruff](https://github.com/astral-sh/ruff)
-- **Authentication**: Stateless JWT
+- **Authentication**: Stateless JWT with **Refresh Token Rotation**
 
 ## Local Development Setup
 
@@ -127,13 +127,13 @@ Then, edit the `.env` file with your specific settings (e.g., your database URI 
 
 To avoid potential conflicts with Python version managers like `pyenv`, it is highly recommended to run services by invoking the module directly with `python -m`.
 
-To run the auth-service for development on port 8001:
+To run the auth_service for development on port 8001:
 
 ```bash
-python -m uvicorn services.auth-service.app.main:app --reload --port 8001
+python -m uvicorn services.auth_service.app.main:app --reload --port 8001
 ```
 
-- services.auth-service.app.main:app: Points to the file path and the FastAPI app instance.
+- services.auth_service.app.main:app: Points to the file path and the FastAPI app instance.
 
 - --reload: Enables hot-reloading for development. The server will restart on code changes.
 
@@ -143,13 +143,21 @@ To run multiple services, open a new terminal for each one and run them on diffe
 
 - Auth Service: uvicorn ... --port 8001
 
-- Expense Service: uvicorn services.expense-service.app.main:app --reload --port 8001
+### Unit Testing
+
+This project uses `pytest` for unit testing. Tests are located in the `/tests` directory, mirroring the `/services` structure.
+
+To run all tests:
+
+```bash
+pytest
+```
 
 ### API Endpoints & Testing
 
 Here are the currently available endpoints.
 
-Service: `auth-service`
+Service: `auth_service`
 
 `GET /health`
 
@@ -158,7 +166,7 @@ Service: `auth-service`
 
 `POST /signup`
 
-- Description: Registers a new user
+- Description: Registers a new user.
 - Request Body:
 
 ```json
@@ -184,5 +192,64 @@ curl -X POST "[http://127.0.0.1:8001/signup](http://127.0.0.1:8001/signup)" \
   "email": "test@example.com",
   "verified": false,
   "created_at": "2025-07-07T07:23:48.123Z"
+}
+```
+
+`POST /login`
+
+- Description: Logs in a user and returns a pair of tokens.
+- Request Body:
+
+```json
+{
+  "email": "test@example.com",
+  "password": "a_strong_password_123"
+}
+```
+
+- Test Command:
+
+```bash
+curl -X POST "[http://127.0.0.1:8001/login](http://127.0.0.1:8001/login)" \
+-H "Content-Type: application/json" \
+-d '{"email": "test@example.com", "password": "a_strong_password_123"}'
+```
+
+- Success Response (201 Created):
+
+```json
+{
+  "access_token": "ey...",
+  "refresh_token": "abc...",
+  "token_type": "bearer"
+}
+```
+
+`POST /token/refresh`
+
+- Description: Exchanges a valid refresh token for a new pair of tokens.
+- Request Body:
+
+```json
+{
+  "refresh_token": "abc...",
+}
+```
+
+- Test Command:
+
+```bash
+curl -X POST "[http://127.0.0.1:8001/token/refresh](http://127.0.0.1:8001/token/refresh)" \
+-H "Content-Type: application/json" \
+-d '{"refresh_token": "your_refresh_token_here"}'
+```
+
+- Success Response (201 Created):
+
+```json
+{
+  "access_token": "ey...",
+  "refresh_token": "abc...",
+  "token_type": "bearer"
 }
 ```

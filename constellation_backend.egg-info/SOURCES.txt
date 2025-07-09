@@ -9,9 +9,9 @@ packages/__init__.py
 packages/shared_models/__init__.py
 packages/shared_utils/__init__.py
 services/__init__.py
-services/auth-service/__init__.py
-services/auth-service/app/__init__.py
-services/auth-service/app/config.py
-services/auth-service/app/main.py
-services/expense-service/__init__.py
-services/expense-service/app/__init__.py
+services/auth_service/__init__.py
+services/auth_service/app/__init__.py
+services/auth_service/app/config.py
+services/auth_service/app/main.py
+services/expense_service/__init__.py
+services/expense_service/app/__init__.py

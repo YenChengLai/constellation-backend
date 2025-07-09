@@ -1,20 +1,23 @@
-# File: packages/shared_utils/database.py
-# Description: Shared asynchronous database connection utility for all services.
-
 import os
+from datetime import timezone
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 # It's a good practice to read the DB connection string and name from environment variables.
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
 DB_NAME = "constellation_db"
 
+
 class DBClient:
     """
     A singleton-like class to manage the database client connection.
     """
+
     client: AsyncIOMotorClient | None = None
 
+
 db_client = DBClient()
+
 
 async def get_db() -> AsyncIOMotorDatabase:
     """
@@ -27,13 +30,15 @@ async def get_db() -> AsyncIOMotorDatabase:
         raise RuntimeError("Database client has not been initialized.")
     return db_client.client[DB_NAME]
 
+
 async def connect_to_mongo():
     """
     Event handler for application startup. Connects to the database.
     """
     print("Connecting to MongoDB...")
-    db_client.client = AsyncIOMotorClient(MONGODB_URI)
+    db_client.client = AsyncIOMotorClient(MONGODB_URI, tz_aware=True, tzinfo=timezone.utc)
     print("Connection successful.")
+
 
 async def close_mongo_connection():
     """
