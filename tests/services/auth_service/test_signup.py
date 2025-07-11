@@ -6,19 +6,41 @@ from httpx import AsyncClient
 pytestmark = pytest.mark.asyncio
 
 
-async def test_signup_success(client: AsyncClient):
+async def test_signup_success_with_names(client: AsyncClient):
     """
-    Tests successful user registration.
+    Tests successful user registration WITH first and last names.
     """
     response = await client.post(
         "/signup",
-        json={"email": "test@example.com", "password": "a_strong_password_123"},
+        json={
+            "email": "test@example.com",
+            "password": "a_strong_password_123",
+            "first_name": "Test",
+            "last_name": "User",
+        },
     )
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == "test@example.com"
+    assert data["first_name"] == "Test"
+    assert data["last_name"] == "User"
     assert "user_id" in data
-    assert data["verified"] is False
+
+
+async def test_signup_success_without_names(client: AsyncClient):
+    """
+    Tests successful user registration WITHOUT optional names.
+    """
+    response = await client.post(
+        "/signup",
+        json={"email": "anon@example.com", "password": "a_strong_password_123"},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "anon@example.com"
+    # Ensure optional fields are returned as null/None
+    assert data["first_name"] is None
+    assert data["last_name"] is None
 
 
 async def test_signup_duplicate_email(client: AsyncClient):

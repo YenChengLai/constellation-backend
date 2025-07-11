@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
 from jose import jwt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -33,7 +33,7 @@ def create_access_token(user: dict) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-async def create_refresh_token(user: dict, db: AsyncIOMotorDatabase) -> str:
+async def create_refresh_token(user: dict, db: AsyncIOMotorDatabase, request: Request) -> str:
     """
     Creates a long-lived Refresh Token and stores its hash in the database.
     """
@@ -46,12 +46,17 @@ async def create_refresh_token(user: dict, db: AsyncIOMotorDatabase) -> str:
     # 3. Set expiry date (e.g., 7 days)
     expire = datetime.now(timezone.utc) + timedelta(days=7)
 
+    user_agent = request.headers.get("user-agent")
+    ip_address = request.client.host if request.client else None
+
     # 4. Create session document
     session_doc = {
         "user_id": user["_id"],
         "refresh_token_hash": refresh_token_hash,
         "expires_at": expire,
         "created_at": datetime.now(timezone.utc),
+        "user_agent": user_agent,
+        "ip_address": ip_address,
     }
 
     # 5. Insert into the new 'sessions' collection
@@ -77,8 +82,11 @@ async def create_user(db: AsyncIOMotorDatabase, user_data: SignupRequest) -> Use
 
     new_user_doc = {
         "email": user_data.email,
+        "first_name": user_data.first_name,
+        "last_name": user_data.last_name,
         "hashed_password": hashed_password,
         "verified": False,
+        "provider_accounts": [{"provider_name": "local", "provider_id": user_data.email}],
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
@@ -92,7 +100,7 @@ async def create_user(db: AsyncIOMotorDatabase, user_data: SignupRequest) -> Use
     return UserPublic.model_validate(created_user)
 
 
-async def login_user(db: AsyncIOMotorDatabase, login_data: LoginRequest) -> TokenResponse:
+async def login_user(db: AsyncIOMotorDatabase, login_data: LoginRequest, request: Request) -> TokenResponse:
     """
     Handles user login and token generation.
     """
@@ -107,12 +115,14 @@ async def login_user(db: AsyncIOMotorDatabase, login_data: LoginRequest) -> Toke
 
     # 3. Generate tokens
     access_token = create_access_token(user)
-    refresh_token = await create_refresh_token(user, db)
+    refresh_token = await create_refresh_token(user, db, request)
 
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-async def refresh_access_token(db: AsyncIOMotorDatabase, refresh_token_data: RefreshTokenRequest) -> TokenResponse:
+async def refresh_access_token(
+    db: AsyncIOMotorDatabase, refresh_token_data: RefreshTokenRequest, request: Request
+) -> TokenResponse:
     """
     Handles refresh token rotation.
     1. Finds and deletes the old session atomically.
@@ -143,6 +153,6 @@ async def refresh_access_token(db: AsyncIOMotorDatabase, refresh_token_data: Ref
 
     # 4. Issue a new pair of tokens
     new_access_token = create_access_token(user)
-    new_refresh_token = await create_refresh_token(user, db)
+    new_refresh_token = await create_refresh_token(user, db, request)
 
     return TokenResponse(access_token=new_access_token, refresh_token=new_refresh_token)

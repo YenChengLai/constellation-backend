@@ -23,6 +23,8 @@ PyObjectId = Annotated[str, BeforeValidator(object_id_as_str)]
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
+    first_name: str | None = None
+    last_name: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -41,6 +43,8 @@ class UserPublic(BaseModel):
     # Apply our new custom type to the user_id field.
     internal_id: PyObjectId = Field(alias="_id", exclude=True)
     email: EmailStr
+    first_name: str | None = None
+    last_name: str | None = None
     verified: bool
     created_at: datetime
 
@@ -67,6 +71,8 @@ class SessionInDB(BaseModel):
     refresh_token_hash: str
     expires_at: datetime
     created_at: datetime
+    user_agent: str | None
+    ip_address: str | None
 
     model_config = ConfigDict(
         from_attributes=True,

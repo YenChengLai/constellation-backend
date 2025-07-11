@@ -2,7 +2,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, status
+from fastapi import Depends, FastAPI, status, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 # This import will now work correctly!S
@@ -44,18 +44,22 @@ async def signup_new_user(user_data: SignupRequest, db: AsyncIOMotorDatabase = D
 
 
 @app.post("/login", response_model=TokenResponse, tags=["Authentication"])
-async def login_for_access_token(login_data: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)) -> TokenResponse:
+async def login_for_access_token(
+    request: Request, login_data: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)
+) -> TokenResponse:
     """
     Endpoint to log in a user and receive tokens.
     """
-    token_pair = await login_user(db=db, login_data=login_data)
+    token_pair = await login_user(db=db, login_data=login_data, request=request)
     return token_pair
 
 
 @app.post("/token/refresh", response_model=TokenResponse, tags=["Authentication"])
-async def refresh_tokens(token_data: RefreshTokenRequest, db: AsyncIOMotorDatabase = Depends(get_db)) -> TokenResponse:
+async def refresh_tokens(
+    request: Request, token_data: RefreshTokenRequest, db: AsyncIOMotorDatabase = Depends(get_db)
+) -> TokenResponse:
     """
     Endpoint to get a new pair of tokens using a refresh token.
     """
-    new_token_pair = await refresh_access_token(db=db, refresh_token_data=token_data)
+    new_token_pair = await refresh_access_token(db=db, refresh_token_data=token_data, request=request)
     return new_token_pair
