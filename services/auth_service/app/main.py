@@ -2,13 +2,14 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, status, Request
+from fastapi import Depends, FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-# This import will now work correctly!S
+# This import will now work correctly!
 from packages.shared_utils.database import close_mongo_connection, connect_to_mongo, get_db
 
-from .auth_logic import create_user, login_user, refresh_access_token
+from .auth_logic import create_user, login_user, logout_user, refresh_access_token
 
 # Import from our own modules
 from .config import settings
@@ -30,6 +31,18 @@ async def lifespan(app: FastAPI):
 
 # Initialize the FastAPI app with the lifespan handler
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
+
+origins = [
+    "http://localhost:5173",  # Local development
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # 允許指定的來源
+    allow_credentials=True,  # 允許傳送 cookies/authorization headers
+    allow_methods=["*"],  # 允許所有 HTTP 方法 (GET, POST, etc.)
+    allow_headers=["*"],  # 允許所有 HTTP headers
+)
 
 
 @app.get("/health", tags=["System"])
@@ -63,3 +76,12 @@ async def refresh_tokens(
     """
     new_token_pair = await refresh_access_token(db=db, refresh_token_data=token_data, request=request)
     return new_token_pair
+
+
+@app.post("/logout", status_code=status.HTTP_204_NO_CONTENT, tags=["Authentication"])
+async def logout(token_data: RefreshTokenRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Endpoint to log out a user by invalidating their refresh token.
+    """
+    await logout_user(db=db, refresh_token_data=token_data)
+    return

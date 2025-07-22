@@ -113,7 +113,14 @@ async def login_user(db: AsyncIOMotorDatabase, login_data: LoginRequest, request
     if not verify_password(login_data.password, user["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    # 3. Generate tokens
+    # 3. Check if the user is verified
+    if not user.get("verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account not verified. Please contact an administrator.",
+        )
+
+    # 4. Generate tokens
     access_token = create_access_token(user)
     refresh_token = await create_refresh_token(user, db, request)
 
@@ -156,3 +163,21 @@ async def refresh_access_token(
     new_refresh_token = await create_refresh_token(user, db, request)
 
     return TokenResponse(access_token=new_access_token, refresh_token=new_refresh_token)
+
+
+async def logout_user(db: AsyncIOMotorDatabase, refresh_token_data: RefreshTokenRequest):
+    """
+    Handles user logout by deleting their session from the database.
+    """
+    token_to_hash = refresh_token_data.refresh_token
+    hashed_token = hashlib.sha256(token_to_hash.encode("utf-8")).hexdigest()
+
+    # Find and delete the session to invalidate the refresh token
+    result = await db.sessions.delete_one({"refresh_token_hash": hashed_token})
+
+    if result.deleted_count == 0:
+        # This could happen if the token is already invalid or expired.
+        # We can choose to silently ignore this or raise an error.
+        # For a smoother UX, we'll ignore it.
+        pass
+    return {"message": "Logout successful"}
