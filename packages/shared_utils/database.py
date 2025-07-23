@@ -1,50 +1,30 @@
-import os
-from datetime import timezone
+# packages/shared_utils/database.py
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
-# It's a good practice to read the DB connection string and name from environment variables.
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
-DB_NAME = "constellation_db"
+# ✨ 修正點：從新的共享 config 檔案引入 settings
+from packages.shared_utils.config import settings
 
-
-class DBClient:
-    """
-    A singleton-like class to manage the database client connection.
-    """
-
-    client: AsyncIOMotorClient | None = None
-
-
-db_client = DBClient()
-
-
-async def get_db() -> AsyncIOMotorDatabase:
-    """
-    FastAPI dependency to get the async database instance.
-    This function will be called for each request that needs a DB connection.
-    """
-    if db_client.client is None:
-        # This should ideally only happen once, at application startup.
-        # We will manage this with startup/shutdown events in main.py
-        raise RuntimeError("Database client has not been initialized.")
-    return db_client.client[DB_NAME]
+client: AsyncIOMotorClient | None = None
+db: AsyncIOMotorDatabase | None = None
 
 
 async def connect_to_mongo():
-    """
-    Event handler for application startup. Connects to the database.
-    """
+    global client, db
     print("Connecting to MongoDB...")
-    db_client.client = AsyncIOMotorClient(MONGODB_URI, tz_aware=True, tzinfo=timezone.utc)
-    print("Connection successful.")
+    client = AsyncIOMotorClient(settings.MONGODB_URI)
+    db = client.constellation_db
+    print("Successfully connected to MongoDB.")
 
 
 async def close_mongo_connection():
-    """
-    Event handler for application shutdown. Closes the database connection.
-    """
-    if db_client.client:
-        print("Closing MongoDB connection...")
-        db_client.client.close()
-        print("Connection closed.")
+    global client
+    if client:
+        client.close()
+        print("MongoDB connection closed.")
+
+
+async def get_db() -> AsyncIOMotorDatabase:
+    if db is None:
+        await connect_to_mongo()
+    return db

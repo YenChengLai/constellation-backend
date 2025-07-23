@@ -1,32 +1,17 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+# services/auth_service/app/config.py
+
+from packages.shared_utils.config import Settings as BaseSettings
 
 
-class Settings(BaseSettings):
+class AuthServiceSettings(BaseSettings):
     """
-    Loads all required settings from environment variables defined in .env
+    Settings specific to the Authentication Service.
+    It inherits all settings from the shared BaseSettings and adds its own.
     """
 
-    # --- Declare all variables from your .env file here ---
-
-    # Database Configuration
-    MONGODB_URI: str
-    TEST_MONGODB_URI: str | None = None  # Optional for testing
-
-    # JWT Authentication
-    SECRET_KEY: str
-    ALGORITHM: str
-
-    # Application-specific
     APP_NAME: str = "Constellation Auth Service"
-    ADMIN_EMAIL: str
-
-    # Inter-service Communication (for future use)
-    # We make this optional by allowing None and providing a default
-    EXPENSE_SERVICE_URL: str | None = None
-
-    # This tells pydantic-settings where to find the .env file.
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    # Future auth-service specific variables can be added here.
 
 
-# Create a single instance to be imported in other modules
-settings = Settings()
+# Create an instance of the service-specific settings
+settings = AuthServiceSettings()

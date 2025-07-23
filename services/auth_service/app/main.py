@@ -8,14 +8,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from packages.shared_utils.auth import get_current_user
+
 # This import will now work correctly!
 from packages.shared_utils.database import close_mongo_connection, connect_to_mongo, get_db
 
-from .auth_logic import create_user, login_user, logout_user, refresh_access_token
+from .auth_logic import (
+    create_group,
+    create_user,
+    list_groups_for_user,
+    login_user,
+    logout_user,
+    refresh_access_token,
+)
 
 # Import from our own modules
 from .config import settings
-from .models import LoginRequest, RefreshTokenRequest, SignupRequest, TokenResponse, UserPublic
+from .models import (
+    GroupCreate,
+    GroupPublic,
+    LoginRequest,
+    RefreshTokenRequest,
+    SignupRequest,
+    TokenResponse,
+    UserPublic,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
@@ -104,3 +121,26 @@ async def logout(token_data: RefreshTokenRequest, db: AsyncIOMotorDatabase = Dep
     """
     await logout_user(db=db, refresh_token_data=token_data)
     return
+
+
+@app.post("/groups", response_model=GroupPublic, status_code=status.HTTP_201_CREATED, tags=["Groups"])
+async def create_new_group(
+    group_data: GroupCreate, db: AsyncIOMotorDatabase = Depends(get_db), current_user: dict = Depends(get_current_user)
+) -> GroupPublic:
+    """
+    Create a new group for the currently authenticated user.
+    The creator is automatically set as the owner and first member.
+    """
+    new_group = await create_group(db=db, group_data=group_data, current_user=current_user)
+    return new_group
+
+
+@app.get("/groups/me", response_model=list[GroupPublic], tags=["Groups"])
+async def read_user_groups(
+    db: AsyncIOMotorDatabase = Depends(get_db), current_user: dict = Depends(get_current_user)
+) -> list[GroupPublic]:
+    """
+    Retrieve a list of groups that the currently authenticated user is a member of.
+    """
+    groups = await list_groups_for_user(db=db, current_user=current_user)
+    return groups

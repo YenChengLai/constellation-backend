@@ -78,3 +78,32 @@ class SessionInDB(BaseModel):
         from_attributes=True,
         populate_by_name=True,
     )
+
+
+# --- Group Models ---
+class GroupBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class GroupCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class GroupPublic(GroupBase):
+    id: PyObjectId = Field(alias="_id")
+    owner_id: PyObjectId
+    members: list[PyObjectId]
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
+
+
+class GroupInDB(BaseModel):
+    id: PyObjectId = Field(alias="_id")
+    name: str
+    owner_id: PyObjectId
+    members: list[PyObjectId]
+    created_at: datetime
