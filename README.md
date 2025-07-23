@@ -74,7 +74,9 @@ graph TD
 - **Authentication**: Stateless JWT with **Refresh Token Rotation**
 - **CORS**: Handled via FastAPI Middleware for secure frontend communication.
 
-## Local Development Setup
+## Monorepo-Level Development Setup
+
+These instructions are for setting up the entire monorepo environment. For instructions on running a specific service, please see the `README.md` file within that service's directory.
 
 ### Prerequisites
 
@@ -106,45 +108,23 @@ graph TD
     uv pip install -e '.[auth,expense,dev]'
     ```
 
-### Configuration
+4. **Setup Environment Variables**:
+    Create your local `.env` file from the template. This file contains secrets and is shared across all services.
 
-Create your local `.env` file from the template. This file is ignored by Git and contains your secret values.
+    ```bash
+    cp .env.example .env
+    ```
 
-```bash
-cp .env.example .env
-```
+    Then, edit the `.env` file with your specific settings (e.g., your database URI and `SECRET_KEY`).
 
-Then, edit the `.env` file with your specific settings (e.g., your database URI and a strong `SECRET_KEY`).
+## Available Services
 
-|Variable|Description|Example|
-|---|---|---|
-|MONGODB_URI|The connection string for your MongoDB instance| `mongodb://localhost:27017`|
-|SECRET_KEY|A long, random string used for signing JWTs. <b>Keep this secret!</b>|`a-very-long-and-random-secret-string`|
-|ALGORITHM|The algorithm used for JWT signing. `HS256` is standard.|`admin@example.com`|
-|ADMIN_EMAIL|The email address designated as the super-admin for the system.|`HS256`|
-|EXPENSE_SERVICE_URL| The local URL for the expense service, used for inter-service communication (e.g., from the auth service).|`http://127.0.0.1:8001`|
+Below is a list of the services available in this monorepo. Click the link for detailed information on each service's configuration, API, and how to run it.
 
-### Running the Services
+- [Auth Service](./services/auth_service/): Handles user authentication, identity, and session management.
+- (More services will be added here)
 
-To avoid potential conflicts with Python version managers like `pyenv`, it is highly recommended to run services by invoking the module directly with `python -m`.
-
-To run the auth_service for development on port 8001:
-
-```bash
-python -m uvicorn services.auth_service.app.main:app --reload --port 8001
-```
-
-- services.auth_service.app.main:app: Points to the file path and the FastAPI app instance.
-
-- --reload: Enables hot-reloading for development. The server will restart on code changes.
-
-- --port 8001: Specifies the port for this service.
-
-To run multiple services, open a new terminal for each one and run them on different ports:
-
-- Auth Service: uvicorn ... --port 8001
-
-### Unit Testing
+## Unit Testing
 
 This project uses `pytest` for unit testing. Tests are located in the `/tests` directory, mirroring the `/services` structure.
 
@@ -153,133 +133,3 @@ To run all tests:
 ```bash
 pytest
 ```
-
-### API Endpoints & Testing
-
-Here are the currently available endpoints.
-
-Service: `auth_service`
-
-`GET /health`
-
-- Description: Checks if the service is running
-- Test: `curl http://127.0.0.1:8001/health`
-
-`POST /signup`
-
-- Description: Registers a new user.
-- Request Body:
-
-```json
-{
-  "email": "user@example.com",
-  "password": "a-very-strong-password"
-}
-```
-
-- Test Command:
-
-```bash
-curl -X POST "[http://127.0.0.1:8001/signup](http://127.0.0.1:8001/signup)" \
--H "Content-Type: application/json" \
--d '{"email": "test@example.com", "password": "a_strong_password_123"}'
-```
-
-- Success Response (201 Created):
-
-```json
-{
-  "user_id": "668aa5a4c5e3f4a1b2c3d4e5",
-  "email": "test@example.com",
-  "verified": false,
-  "created_at": "2025-07-07T07:23:48.123Z"
-}
-```
-
-`POST /login`
-
-- Description: Logs in a **verified** user and returns a pair of tokens.
-- Request Body:
-
-```json
-{
-  "email": "test@example.com",
-  "password": "a_strong_password_123"
-}
-```
-
-- Test Command:
-
-```bash
-curl -X POST "[http://127.0.0.1:8001/login](http://127.0.0.1:8001/login)" \
--H "Content-Type: application/json" \
--d '{"email": "test@example.com", "password": "a_strong_password_123"}'
-```
-
-- Success Response (200 OK):
-
-```json
-{
-  "access_token": "ey...",
-  "refresh_token": "abc...",
-  "token_type": "bearer"
-}
-```
-
-- Failure Response (403 Forbidden - Unverified User):
-
-```json
-{
-    "detail": "Account not verified. Please contact an administrator."
-}
-```
-
-`POST /token/refresh`
-
-- Description: Exchanges a valid refresh token for a new pair of tokens.
-- Request Body:
-
-```json
-{
-  "refresh_token": "abc...",
-}
-```
-
-- Test Command:
-
-```bash
-curl -X POST "[http://127.0.0.1:8001/token/refresh](http://127.0.0.1:8001/token/refresh)" \
--H "Content-Type: application/json" \
--d '{"refresh_token": "your_refresh_token_here"}'
-```
-
-- Success Response (200 OK):
-
-```json
-{
-  "access_token": "ey...",
-  "refresh_token": "abc...",
-  "token_type": "bearer"
-}
-```
-
-`POST /logout`
-
-- Description: Logs out a user by invalidating their current refresh token.
-- Request Body:
-
-```json
-{
-  "refresh_token": "the_refresh_token_to_invalidate"
-}
-```
-
-- Test Command:
-
-```bash
-curl -X POST "[http://127.0.0.1:8001/logout](http://127.0.0.1:8001/logout)" \
--H "Content-Type: application/json" \
--d '{"refresh_token": "your_refresh_token_here"}'
-```
-
-- Success Response `204 No Content` (with an empty response body).
