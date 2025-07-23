@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 # This import will now work correctly!
@@ -43,6 +45,23 @@ app.add_middleware(
     allow_methods=["*"],  # 允許所有 HTTP 方法 (GET, POST, etc.)
     allow_headers=["*"],  # 允許所有 HTTP headers
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # 從錯誤中提取第一條、對使用者最有用的訊息
+    try:
+        first_error = exc.errors()[0]
+        # 組合欄位和錯誤訊息
+        field = ".".join(map(str, first_error.get("loc", [])))
+        message = f"{field}: {first_error.get('msg', 'Invalid input.')}"
+    except (IndexError, KeyError):
+        message = "Invalid input details provided."
+
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": message},
+    )
 
 
 @app.get("/health", tags=["System"])
