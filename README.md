@@ -72,6 +72,7 @@ graph TD
 - **Package & Env Management**: [uv](https://github.com/astral-sh/uv)
 - **Linting & Formatting**: [Ruff](https://github.com/astral-sh/ruff)
 - **Authentication**: Stateless JWT with **Refresh Token Rotation**
+- **CORS**: Handled via FastAPI Middleware for secure frontend communication.
 
 ## Local Development Setup
 
@@ -197,7 +198,7 @@ curl -X POST "[http://127.0.0.1:8001/signup](http://127.0.0.1:8001/signup)" \
 
 `POST /login`
 
-- Description: Logs in a user and returns a pair of tokens.
+- Description: Logs in a **verified** user and returns a pair of tokens.
 - Request Body:
 
 ```json
@@ -215,13 +216,21 @@ curl -X POST "[http://127.0.0.1:8001/login](http://127.0.0.1:8001/login)" \
 -d '{"email": "test@example.com", "password": "a_strong_password_123"}'
 ```
 
-- Success Response (201 Created):
+- Success Response (200 OK):
 
 ```json
 {
   "access_token": "ey...",
   "refresh_token": "abc...",
   "token_type": "bearer"
+}
+```
+
+- Failure Response (403 Forbidden - Unverified User):
+
+```json
+{
+    "detail": "Account not verified. Please contact an administrator."
 }
 ```
 
@@ -244,7 +253,7 @@ curl -X POST "[http://127.0.0.1:8001/token/refresh](http://127.0.0.1:8001/token/
 -d '{"refresh_token": "your_refresh_token_here"}'
 ```
 
-- Success Response (201 Created):
+- Success Response (200 OK):
 
 ```json
 {
@@ -253,3 +262,24 @@ curl -X POST "[http://127.0.0.1:8001/token/refresh](http://127.0.0.1:8001/token/
   "token_type": "bearer"
 }
 ```
+
+`POST /logout`
+
+- Description: Logs out a user by invalidating their current refresh token.
+- Request Body:
+
+```json
+{
+  "refresh_token": "the_refresh_token_to_invalidate"
+}
+```
+
+- Test Command:
+
+```bash
+curl -X POST "[http://127.0.0.1:8001/logout](http://127.0.0.1:8001/logout)" \
+-H "Content-Type: application/json" \
+-d '{"refresh_token": "your_refresh_token_here"}'
+```
+
+- Success Response `204 No Content` (with an empty response body).
