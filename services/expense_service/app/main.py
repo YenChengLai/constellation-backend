@@ -7,12 +7,26 @@ from fastapi import Depends, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from packages.shared_models.models import PyObjectId, UserInDB
+from packages.shared_models.models import UserInDB
 from packages.shared_utils.auth import get_current_user
 from packages.shared_utils.database import close_mongo_connection, connect_to_mongo, get_db
 
-from .logic import create_category, create_transaction, delete_category, list_categories
-from .models import CategoryCreate, CategoryPublic, CreateTransactionRequest, TransactionPublic
+from .logic import (
+    create_category,
+    create_transaction,
+    delete_category,
+    delete_transaction,
+    list_categories,
+    list_transactions,
+    update_transaction,
+)
+from .models import (
+    CategoryCreate,
+    CategoryPublic,
+    CreateTransactionRequest,
+    TransactionPublic,
+    UpdateTransactionRequest,
+)
 
 
 @asynccontextmanager
@@ -25,7 +39,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Expense Service", lifespan=lifespan)
 
 # CORS 設定
-
 origins = ["http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +66,41 @@ async def add_new_transaction(
     """Create a new transaction for the authenticated user."""
     new_transaction = await create_transaction(db=db, transaction_data=transaction_data, current_user=current_user)
     return new_transaction
+
+
+@app.get("/transactions", response_model=list[TransactionPublic], tags=["Transactions"])
+async def get_transactions(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Retrieve all transactions for the authenticated user."""
+    transactions = await list_transactions(db=db, current_user=current_user)
+    return transactions
+
+
+@app.patch("/transactions/{transaction_id}", response_model=TransactionPublic, tags=["Transactions"])
+async def update_existing_transaction(
+    transaction_id: str,
+    update_data: UpdateTransactionRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Update a specific transaction for the authenticated user."""
+    updated_tx = await update_transaction(
+        db=db, transaction_id=transaction_id, update_data=update_data, current_user=current_user
+    )
+    return updated_tx
+
+
+@app.delete("/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transactions"])
+async def remove_transaction(
+    transaction_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Delete a specific transaction for the authenticated user."""
+    await delete_transaction(db=db, transaction_id=transaction_id, current_user=current_user)
+    return
 
 
 # --- Categories Endpoints ---

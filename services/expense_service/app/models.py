@@ -1,10 +1,9 @@
 # services/expense_service/app/models.py
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 # 假設我們的共享 PyObjectId 位於 packages/shared_models/models.py
 from packages.shared_models.models import PyObjectId
@@ -30,8 +29,20 @@ class CategoryCreate(CategoryBase):
 class CategoryPublic(CategoryBase):
     """用於 API 回應的模型，包含 ID"""
 
-    id: PyObjectId = Field(alias="_id")
-    user_id: PyObjectId
+    internal_id: PyObjectId = Field(alias="_id", exclude=True)
+    user_id: PyObjectId | None = None  # 可選，若為 None 則為系統預設分類
+
+    # 使用 computed_field 來確保 'id' 欄位永遠存在於 JSON 輸出中
+    @computed_field
+    @property
+    def id(self) -> str:
+        return str(self.internal_id)
+
+    # 加上 model_config 以啟用 from_attributes 和 populate_by_name
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
 
 
 # --- Transaction Models ---
@@ -51,7 +62,7 @@ class TransactionBase(BaseModel):
     """基本交易模型"""
 
     type: Literal["expense", "income"]
-    amount: Decimal = Field(..., gt=0, description="Amount must be positive")
+    amount: float = Field(..., gt=0, description="Amount must be positive")
     transaction_date: datetime = Field(default_factory=datetime.now)
     description: str | None = None
     currency: str = "TWD"  # 預設貨幣
@@ -65,14 +76,25 @@ class CreateTransactionRequest(TransactionBase):
 
 
 class TransactionPublic(TransactionBase):
-    """用於 API 回應的公開交易模型"""
-
-    id: PyObjectId = Field(alias="_id")
+    # 使用一個臨時的內部欄位來接收來自資料庫的 _id
+    internal_id: PyObjectId = Field(alias="_id", exclude=True)
     user_id: PyObjectId
     group_id: PyObjectId | None = None
-    category: CategoryEmbedded  # 回應中包含完整的內嵌分類資訊
+    category: CategoryEmbedded
     created_at: datetime
     updated_at: datetime
+
+    # 使用 computed_field 來確保 'id' 欄位永遠存在於 JSON 輸出中
+    @computed_field
+    @property
+    def id(self) -> str:
+        return str(self.internal_id)
+
+    # 加上 model_config 以啟用 from_attributes 和 populate_by_name
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
 
 
 class TransactionInDB(TransactionBase):
@@ -84,3 +106,16 @@ class TransactionInDB(TransactionBase):
     category: CategoryEmbedded
     created_at: datetime
     updated_at: datetime
+
+
+class UpdateTransactionRequest(BaseModel):
+    """
+    Model for updating a transaction. All fields are optional.
+    """
+
+    type: Literal["expense", "income"] | None = None
+    amount: float | None = Field(default=None, gt=0)
+    transaction_date: datetime | None = None
+    description: str | None = None
+    category_id: PyObjectId | None = None
+    group_id: PyObjectId | None = None

@@ -20,6 +20,8 @@ This is a Python monorepo managed with `uv`. It contains two primary top-level d
 constellation-backend/
 │
 ├── .env.example              # Example environment variables file
+├── Makefile
+├── Procfile
 ├── .gitignore
 ├── pyproject.toml            # Project configuration and dependencies
 ├── README.md                 # This file
@@ -96,26 +98,29 @@ These instructions are for setting up the entire monorepo environment. For instr
 2. **Create and activate the virtual environment:**
 
     ```bash
-    uv venv
+    make install
     source .venv/bin/activate  # For macOS / Linux
     # .venv\Scripts\Activate.ps1 # For Windows PowerShell
     ```
 
-3. **Install all dependencies:**
-    This command installs all core, service-specific, and development dependencies defined in `pyproject.toml`. The `-e` flag installs your local `packages` and `services` in "editable" mode, which is essential for monorepo development.
+3. **Setup Environment Variables:**
+    Create your local `.env` file from the template.
 
     ```bash
-    uv pip install -e '.[auth,expense,dev]'
+    make setup-env
     ```
 
-4. **Setup Environment Variables**:
-    Create your local `.env` file from the template. This file contains secrets and is shared across all services.
+4. **Seed the Database**:
+    Run the data seeding script to populate the database with initial data (like default categories).
 
     ```bash
-    cp .env.example .env
+    make db-seed
     ```
 
-    Then, edit the `.env` file with your specific settings (e.g., your database URI and `SECRET_KEY`).
+### Running the System
+
+- To run all services concurrently: `make run`
+- To see all available commands: `make help`
 
 ## Available Services
 
