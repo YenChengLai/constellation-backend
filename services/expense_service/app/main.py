@@ -1,9 +1,10 @@
 # services/expense_service/app/main.py
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import Depends, FastAPI, status
+from fastapi import Depends, FastAPI, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -70,11 +71,19 @@ async def add_new_transaction(
 
 @app.get("/transactions", response_model=list[TransactionPublic], tags=["Transactions"])
 async def get_transactions(
+    # 將 year 和 month 改為標準的查詢參數
+    year: int | None = Query(default=None, description="Filter by year"),
+    month: int | None = Query(default=None, description="Filter by month (1-12)"),
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: UserInDB = Depends(get_current_user),
 ):
-    """Retrieve all transactions for the authenticated user."""
-    transactions = await list_transactions(db=db, current_user=current_user)
+    """Retrieve all transactions for the authenticated user for a given month and year."""
+    # 如果前端沒有提供年月，我們在內部將其設為當前時間
+    now = datetime.now(timezone.utc)
+    query_year = year if year is not None else now.year
+    query_month = month if month is not None else now.month
+
+    transactions = await list_transactions(db=db, current_user=current_user, year=query_year, month=query_month)
     return transactions
 
 
