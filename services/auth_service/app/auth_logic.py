@@ -14,12 +14,14 @@ from packages.shared_utils.database import get_db
 
 from .config import settings
 from .models import (
+    AddMemberRequest,
     GroupCreate,
     GroupPublic,
     LoginRequest,
     RefreshTokenRequest,
     SignupRequest,
     TokenResponse,
+    UserInGroup,
     UserPublic,
 )
 
@@ -135,23 +137,134 @@ async def logout_user(db: AsyncIOMotorDatabase, refresh_token_data: RefreshToken
 
 
 async def create_group(db: AsyncIOMotorDatabase, group_data: GroupCreate, current_user: UserInDB) -> GroupPublic:
-    """Creates a new group for the currently authenticated user."""
+    """
+    Creates a new group for the currently authenticated user.
+    """
+    # 1. 準備要寫入資料庫的 Group 文件
+    user_id_obj = ObjectId(current_user.id)
     new_group_doc = {
         "name": group_data.name,
-        "owner_id": ObjectId(current_user.id),
-        "members": [ObjectId(current_user.id)],
+        "owner_id": user_id_obj,
+        "members": [user_id_obj],  # Initially, members array contains only ObjectIds
         "created_at": datetime.now(timezone.utc),
     }
+
     result = await db.groups.insert_one(new_group_doc)
-    created_group = await db.groups.find_one({"_id": result.inserted_id})
-    if not created_group:
+
+    # 2. 取得剛建立的完整文件
+    created_group_doc = await db.groups.find_one({"_id": result.inserted_id})
+    if not created_group_doc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create group.")
-    return GroupPublic.model_validate(created_group)
+
+    members_cursor = db.users.find({"_id": {"$in": created_group_doc["members"]}})
+    members_list = await members_cursor.to_list(length=None)
+
+    # 用查詢到的完整使用者文件，來取代原本只有 ID 的列表
+    created_group_doc["members"] = [UserInGroup.model_validate(mem) for mem in members_list]
+
+    # 4. 使用填充後的資料來進行最終的驗證和回傳
+    return GroupPublic.model_validate(created_group_doc)
 
 
 async def list_groups_for_user(db: AsyncIOMotorDatabase, current_user: UserInDB) -> list[GroupPublic]:
-    """Lists all groups the current user is a member of."""
+    """
+    Lists all groups the current user is a member of, with populated member details.
+    """
     user_id = ObjectId(current_user.id)
+
+    # 1. 找到使用者所屬的所有群組文件
     groups_cursor = db.groups.find({"members": user_id})
-    groups = await groups_cursor.to_list(length=100)
-    return [GroupPublic.model_validate(group) for group in groups]
+    groups_docs = await groups_cursor.to_list(length=100)
+
+    populated_groups = []
+    for group in groups_docs:
+        # 2. 對於每一個群組，獲取其成員 ID 列表
+        member_ids = group.get("members", [])
+
+        # 3. 根據 ID 列表，去 users collection 查詢所有成員的詳細資料
+        members_cursor = db.users.find({"_id": {"$in": member_ids}})
+        members_list = await members_cursor.to_list(length=None)
+
+        # 4. 將查詢到的成員資料，轉換為 UserInGroup 模型
+        group["members"] = [UserInGroup.model_validate(mem) for mem in members_list]
+
+        # 5. 將填充完畢的 group 文件，轉換為 GroupPublic 模型
+        populated_groups.append(GroupPublic.model_validate(group))
+
+    return populated_groups
+
+
+async def get_group_details(db: AsyncIOMotorDatabase, group_id: str, current_user: UserInDB) -> GroupPublic:
+    """獲取單一群組的詳細資訊，並填入成員的公開資訊。"""
+    group = await db.groups.find_one({"_id": ObjectId(group_id)})
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found.")
+
+    # 安全檢查：確保當前使用者是該群組的成員之一
+    user_id_list = [member["_id"] for member in group.get("members", [])]
+    if ObjectId(current_user.id) not in user_id_list:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group.")
+
+    # 查詢所有成員的詳細資訊
+    members_cursor = db.users.find({"_id": {"$in": user_id_list}})
+    members_list = await members_cursor.to_list(length=None)
+
+    # 將成員資料轉換為 UserInGroup 模型
+    group["members"] = [UserInGroup.model_validate(mem) for mem in members_list]
+
+    return GroupPublic.model_validate(group)
+
+
+async def add_member_to_group(
+    db: AsyncIOMotorDatabase, group_id: str, member_data: AddMemberRequest, current_user: UserInDB
+) -> GroupPublic:
+    """將一位新成員加入到指定的群組中。"""
+    group = await db.groups.find_one({"_id": ObjectId(group_id)})
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found.")
+
+    # 安全檢查：只有群組的擁有者 (owner) 才能新增成員
+    if group["owner_id"] != ObjectId(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the group owner can add members.")
+
+    # 尋找要被加入的使用者
+    user_to_add = await db.users.find_one({"email": member_data.email})
+    if not user_to_add:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User with email {member_data.email} not found."
+        )
+
+    # 檢查使用者是否已經是成員
+    if user_to_add["_id"] in group["members"]:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member of this group.")
+
+    # 使用 $addToSet 操作符來新增成員，它可以自動處理重複問題
+    await db.groups.update_one({"_id": ObjectId(group_id)}, {"$addToSet": {"members": user_to_add["_id"]}})
+
+    # 回傳更新後的群組詳細資訊
+    return await get_group_details(db, group_id, current_user)
+
+
+async def remove_member_from_group(
+    db: AsyncIOMotorDatabase, group_id: str, member_id: str, current_user: UserInDB
+) -> GroupPublic:
+    """從指定的群組中移除一位成員。"""
+    group = await db.groups.find_one({"_id": ObjectId(group_id)})
+    if not group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found.")
+
+    # 安全檢查：只有群組的擁有者 (owner) 才能移除成員
+    if group["owner_id"] != ObjectId(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the group owner can remove members.")
+
+    member_id_to_remove = ObjectId(member_id)
+
+    # 業務邏輯：擁有者不能移除自己
+    if member_id_to_remove == group["owner_id"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Owner cannot be removed from the group.")
+
+    # 使用 $pull 操作符來移除成員
+    await db.groups.update_one({"_id": ObjectId(group_id)}, {"$pull": {"members": member_id_to_remove}})
+
+    # 回傳更新後的群組詳細資訊
+    return await get_group_details(db, group_id, current_user)

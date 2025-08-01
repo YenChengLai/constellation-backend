@@ -1,5 +1,6 @@
 # services/expense_service/app/logic.py
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -17,6 +18,8 @@ from .models import (
     CategoryPublic,
     CreateTransactionRequest,
     TransactionPublic,
+    TransactionSummaryData,
+    TransactionSummaryResponse,
     UpdateTransactionRequest,
 )
 
@@ -44,6 +47,12 @@ async def create_transaction(
     embedded_category = CategoryEmbedded.model_validate(category)
     now = datetime.now(timezone.utc)
     transaction_doc = transaction_data.model_dump()
+
+    if transaction_doc.get("group_id"):
+        transaction_doc["group_id"] = ObjectId(transaction_doc["group_id"])
+    if transaction_doc.get("payer_id"):
+        transaction_doc["payer_id"] = ObjectId(transaction_doc["payer_id"])
+
     transaction_doc.update(
         {
             "user_id": ObjectId(current_user.id),
@@ -52,7 +61,33 @@ async def create_transaction(
             "updated_at": now,
         }
     )
-    del transaction_doc["category_id"]
+
+    if "payer_id" not in transaction_doc or transaction_doc["payer_id"] is None:
+        # 如果前端沒有傳 payer_id (例如在個人帳本模式下)，
+        # 我們預設支付者就是當前使用者
+        transaction_doc["payer_id"] = ObjectId(current_user.id)
+
+    # 驗證 payer_id 的權限
+    # 如果是群組交易，要確認 payer 是群組成員
+    if transaction_doc.get("group_id"):
+        group = await db.groups.find_one(
+            {
+                "_id": transaction_doc["group_id"],
+                "members": transaction_doc["payer_id"],  # 檢查 payer 是否在成員列表
+            }
+        )
+        if not group:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Payer is not a member of this group.")
+    else:
+        # 如果是個人交易，payer 必須是自己
+        if transaction_doc["payer_id"] != ObjectId(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Payer must be the current user for personal transactions.",
+            )
+
+    if "category_id" in transaction_doc:
+        del transaction_doc["category_id"]
 
     result = await db.transactions.insert_one(transaction_doc)
     created_transaction = await db.transactions.find_one({"_id": result.inserted_id})
@@ -63,7 +98,7 @@ async def create_transaction(
 
 
 async def list_transactions(
-    db: AsyncIOMotorDatabase, current_user: UserInDB, year: int, month: int
+    db: AsyncIOMotorDatabase, current_user: UserInDB, year: int, month: int, group_id: str | None
 ) -> list[TransactionPublic]:
     """Lists all transactions for the current user for a specific month and year."""
     start_of_month = datetime(year, month, 1, tzinfo=timezone.utc)
@@ -73,9 +108,17 @@ async def list_transactions(
         "transaction_date": {"$gte": start_of_month, "$lt": start_of_next_month},
     }
 
+    if group_id:
+        group = await db.groups.find_one({"_id": ObjectId(group_id), "members": ObjectId(current_user.id)})
+        if not group:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in this group.")
+        query["group_id"] = ObjectId(group_id)
+    else:
+        query["user_id"] = ObjectId(current_user.id)
+        query["group_id"] = None
+
     transactions_cursor = db.transactions.find(query).sort("transaction_date", -1)
     transactions = await transactions_cursor.to_list(length=1000)
-
     return [TransactionPublic.model_validate(tx) for tx in transactions]
 
 
@@ -93,8 +136,8 @@ async def update_transaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found.")
 
     update_doc = update_data.model_dump(exclude_unset=True)
-    if update_data.category_id:
-        new_category_id_obj = ObjectId(update_data.category_id)
+    if "category_id" in update_doc and update_doc["category_id"]:
+        new_category_id_obj = ObjectId(update_doc["category_id"])
         category = await db.categories.find_one(
             {
                 "$and": [
@@ -116,6 +159,8 @@ async def update_transaction(
     else:
         return TransactionPublic.model_validate(transaction_to_update)
 
+    if update_doc.get("group_id"):
+        update_doc["group_id"] = ObjectId(update_doc.get("group_id"))
     updated_transaction = await db.transactions.find_one_and_update(
         {"_id": ObjectId(transaction_id)}, {"$set": update_doc}, return_document=ReturnDocument.AFTER
     )
@@ -123,6 +168,61 @@ async def update_transaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found after update.")
 
     return TransactionPublic.model_validate(updated_transaction)
+
+
+async def get_transaction_summary(
+    db: AsyncIOMotorDatabase,
+    current_user: UserInDB,
+    year: int,
+    month: int,
+    group_id: str | None,
+) -> TransactionSummaryResponse:
+    """
+    Calculates the income and expense summary for a given month and the previous month
+    using the MongoDB Aggregation Framework.
+    """
+    # 計算當月和上個月的日期範圍
+    current_month_start = datetime(year, month, 1, tzinfo=timezone.utc)
+    previous_month_start = current_month_start - relativedelta(months=1)
+    next_month_start = current_month_start + relativedelta(months=1)
+
+    # 定義一個可重用的 aggregation pipeline 函式
+    async def _calculate_summary(start_date, end_date):
+        match_criteria = {"transaction_date": {"$gte": start_date, "$lt": end_date}}
+        if group_id:
+            match_criteria["group_id"] = ObjectId(group_id)
+        else:
+            match_criteria["user_id"] = ObjectId(current_user.id)
+            match_criteria["group_id"] = None
+
+        pipeline = [
+            {"$match": match_criteria},
+            {
+                "$group": {
+                    "_id": "$type",  # 按照 'income' 或 'expense' 分組
+                    "total_amount": {"$sum": "$amount"},  # 將同類型的金額加總
+                }
+            },
+        ]
+
+        summary_data = {"income": 0.0, "expense": 0.0}
+        results = await db.transactions.aggregate(pipeline).to_list(length=None)
+
+        for result in results:
+            if result["_id"] == "income":
+                summary_data["income"] = result["total_amount"]
+            elif result["_id"] == "expense":
+                summary_data["expense"] = result["total_amount"]
+
+        return TransactionSummaryData(**summary_data)
+
+    # 平行執行當月和上個月的計算
+    current_month_summary, previous_month_summary = await asyncio.gather(
+        _calculate_summary(current_month_start, next_month_start),
+        _calculate_summary(previous_month_start, current_month_start),
+    )
+
+    return TransactionSummaryResponse(current_month=current_month_summary, previous_month=previous_month_summary)
 
 
 async def delete_transaction(db: AsyncIOMotorDatabase, transaction_id: str, current_user: UserInDB):

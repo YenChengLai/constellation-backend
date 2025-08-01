@@ -8,23 +8,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from packages.shared_models.models import UserInDB
 from packages.shared_utils.auth import get_current_user
 
 # This import will now work correctly!
 from packages.shared_utils.database import close_mongo_connection, connect_to_mongo, get_db
 
 from .auth_logic import (
+    add_member_to_group,
     create_group,
     create_user,
+    get_group_details,
     list_groups_for_user,
     login_user,
     logout_user,
     refresh_access_token,
+    remove_member_from_group,
 )
 
 # Import from our own modules
 from .config import settings
 from .models import (
+    AddMemberRequest,
     GroupCreate,
     GroupPublic,
     LoginRequest,
@@ -144,3 +149,40 @@ async def read_user_groups(
     """
     groups = await list_groups_for_user(db=db, current_user=current_user)
     return groups
+
+
+@app.get("/groups/{group_id}", response_model=GroupPublic, tags=["Groups"])
+async def read_group_details(
+    group_id: str, db: AsyncIOMotorDatabase = Depends(get_db), current_user: UserInDB = Depends(get_current_user)
+):
+    """Get details for a specific group that the user is a member of."""
+    group_details = await get_group_details(db=db, group_id=group_id, current_user=current_user)
+    return group_details
+
+
+@app.post("/groups/{group_id}/members", response_model=GroupPublic, tags=["Groups"])
+async def add_group_member(
+    group_id: str,
+    member_data: AddMemberRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Add a new member to a group. Must be the group owner."""
+    updated_group = await add_member_to_group(
+        db=db, group_id=group_id, member_data=member_data, current_user=current_user
+    )
+    return updated_group
+
+
+@app.delete("/groups/{group_id}/members/{member_id}", response_model=GroupPublic, tags=["Groups"])
+async def remove_group_member(
+    group_id: str,
+    member_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Remove a member from a group. Must be the group owner."""
+    updated_group = await remove_member_from_group(
+        db=db, group_id=group_id, member_id=member_id, current_user=current_user
+    )
+    return updated_group

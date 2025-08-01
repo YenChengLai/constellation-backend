@@ -17,6 +17,7 @@ from .logic import (
     create_transaction,
     delete_category,
     delete_transaction,
+    get_transaction_summary,
     list_categories,
     list_transactions,
     update_transaction,
@@ -26,6 +27,7 @@ from .models import (
     CategoryPublic,
     CreateTransactionRequest,
     TransactionPublic,
+    TransactionSummaryResponse,
     UpdateTransactionRequest,
 )
 
@@ -71,7 +73,7 @@ async def add_new_transaction(
 
 @app.get("/transactions", response_model=list[TransactionPublic], tags=["Transactions"])
 async def get_transactions(
-    # 將 year 和 month 改為標準的查詢參數
+    group_id: str | None = Query(default=None),
     year: int | None = Query(default=None, description="Filter by year"),
     month: int | None = Query(default=None, description="Filter by month (1-12)"),
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -83,7 +85,9 @@ async def get_transactions(
     query_year = year if year is not None else now.year
     query_month = month if month is not None else now.month
 
-    transactions = await list_transactions(db=db, current_user=current_user, year=query_year, month=query_month)
+    transactions = await list_transactions(
+        db=db, current_user=current_user, year=query_year, month=query_month, group_id=group_id
+    )
     return transactions
 
 
@@ -110,6 +114,27 @@ async def remove_transaction(
     """Delete a specific transaction for the authenticated user."""
     await delete_transaction(db=db, transaction_id=transaction_id, current_user=current_user)
     return
+
+
+@app.get("/transactions/summary", response_model=TransactionSummaryResponse, tags=["Transactions"])
+async def get_transactions_summary(
+    group_id: str | None = Query(default=None),
+    year: int | None = Query(default=None, description="Filter by year"),
+    month: int | None = Query(default=None, description="Filter by month (1-12)"),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """
+    Get a summary of income and expenses for the specified month and the previous month.
+    """
+    now = datetime.now(timezone.utc)
+    query_year = year if year is not None else now.year
+    query_month = month if month is not None else now.month
+
+    summary = await get_transaction_summary(
+        db=db, current_user=current_user, year=query_year, month=query_month, group_id=group_id
+    )
+    return summary
 
 
 # --- Categories Endpoints ---

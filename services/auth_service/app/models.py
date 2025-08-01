@@ -89,11 +89,33 @@ class GroupCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
 
 
-class GroupPublic(GroupBase):
+class UserInGroup(BaseModel):
+    """A simplified user model for embedding in group responses."""
+
     id: PyObjectId = Field(alias="_id")
+    email: EmailStr
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
+
+
+class AddMemberRequest(BaseModel):
+    email: EmailStr
+
+
+class GroupPublic(BaseModel):
+    internal_id: PyObjectId = Field(alias="_id", exclude=True)
+    name: str
     owner_id: PyObjectId
-    members: list[PyObjectId]
+    members: list[UserInGroup]
     created_at: datetime
+
+    @computed_field
+    @property
+    def id(self) -> str:
+        return self.internal_id
 
     model_config = ConfigDict(
         from_attributes=True,

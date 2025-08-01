@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # 假設我們的共享 PyObjectId 位於 packages/shared_models/models.py
 from packages.shared_models.models import PyObjectId
@@ -66,6 +66,7 @@ class TransactionBase(BaseModel):
     transaction_date: datetime = Field(default_factory=datetime.now)
     description: str | None = None
     currency: str = "TWD"  # 預設貨幣
+    payer_id: PyObjectId | None = None
 
 
 class CreateTransactionRequest(TransactionBase):
@@ -95,6 +96,20 @@ class TransactionPublic(TransactionBase):
         from_attributes=True,
         populate_by_name=True,
     )
+
+
+class TransactionSummaryData(BaseModel):
+    """代表一個月份的總收入和總支出"""
+
+    income: float = 0.0
+    expense: float = 0.0
+
+
+class TransactionSummaryResponse(BaseModel):
+    """GET /transactions/summary 的回應模型"""
+
+    current_month: TransactionSummaryData
+    previous_month: TransactionSummaryData
 
 
 class TransactionInDB(TransactionBase):
