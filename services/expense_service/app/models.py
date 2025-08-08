@@ -45,6 +45,14 @@ class CategoryPublic(CategoryBase):
     )
 
 
+class UpdateCategoryRequest(BaseModel):
+    """用於更新分類的請求模型，所有欄位皆可選"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=50)
+    icon: str | None = None
+    color: str | None = None
+
+
 # --- Transaction Models ---
 
 
@@ -55,6 +63,7 @@ class CategoryEmbedded(BaseModel):
     """
 
     id: PyObjectId = Field(alias="_id")
+    icon: str | None = None
     name: str
 
 

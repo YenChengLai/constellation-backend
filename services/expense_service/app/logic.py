@@ -20,6 +20,7 @@ from .models import (
     TransactionPublic,
     TransactionSummaryData,
     TransactionSummaryResponse,
+    UpdateCategoryRequest,
     UpdateTransactionRequest,
 )
 
@@ -273,6 +274,31 @@ async def list_categories(
     categories_cursor = db.categories.find(query)
     categories = await categories_cursor.to_list(length=100)
     return [CategoryPublic.model_validate(cat) for cat in categories]
+
+
+async def update_category(
+    db: AsyncIOMotorDatabase, category_id: str, update_data: UpdateCategoryRequest, current_user: UserInDB
+) -> CategoryPublic:
+    """更新一個使用者自訂的分類。"""
+    # 安全檢查：確保分類存在，且屬於當前使用者 (不允許修改預設分類)
+    category_to_update = await db.categories.find_one(
+        {"_id": ObjectId(category_id), "user_id": ObjectId(current_user.id)}
+    )
+    if not category_to_update:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found or permission denied.")
+
+    update_doc = update_data.model_dump(exclude_unset=True)
+
+    if not update_doc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update.")
+
+    updated_category = await db.categories.find_one_and_update(
+        {"_id": ObjectId(category_id)}, {"$set": update_doc}, return_document=ReturnDocument.AFTER
+    )
+
+    # TODO: 未來可以考慮加入一個背景任務，去同步更新所有 transaction 中內嵌的 category name
+
+    return CategoryPublic.model_validate(updated_category)
 
 
 async def delete_category(db: AsyncIOMotorDatabase, category_id: str, current_user: UserInDB):

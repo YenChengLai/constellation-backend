@@ -20,6 +20,7 @@ from .logic import (
     get_transaction_summary,
     list_categories,
     list_transactions,
+    update_category,
     update_transaction,
 )
 from .models import (
@@ -28,6 +29,7 @@ from .models import (
     CreateTransactionRequest,
     TransactionPublic,
     TransactionSummaryResponse,
+    UpdateCategoryRequest,
     UpdateTransactionRequest,
 )
 
@@ -160,6 +162,20 @@ async def get_user_categories(
     """List all categories for the authenticated user, optionally filtered by type."""
     categories = await list_categories(db=db, current_user=current_user, category_type=category_type)
     return categories
+
+
+@app.patch("/categories/{category_id}", response_model=CategoryPublic, tags=["Categories"])
+async def update_user_category(
+    category_id: str,
+    update_data: UpdateCategoryRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Update a user-defined category."""
+    updated_category = await update_category(
+        db=db, category_id=category_id, update_data=update_data, current_user=current_user
+    )
+    return updated_category
 
 
 @app.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Categories"])
