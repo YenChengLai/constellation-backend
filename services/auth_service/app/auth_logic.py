@@ -4,13 +4,12 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from bson import ObjectId
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from fastapi import HTTPException, Request, status
+from jose import jwt
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 
 from packages.shared_models.models import UserInDB
-from packages.shared_utils.database import get_db
 
 from .config import settings
 from .models import (
@@ -192,6 +191,33 @@ async def list_groups_for_user(db: AsyncIOMotorDatabase, current_user: UserInDB)
         populated_groups.append(GroupPublic.model_validate(group))
 
     return populated_groups
+
+
+async def list_unverified_users(db: AsyncIOMotorDatabase) -> list[UserPublic]:
+    """
+    Retrieves a list of all users with verified=false.
+    """
+    users_cursor = db.users.find({"verified": False})
+    users = await users_cursor.to_list(length=1000)  # 最多顯示 1000 名未驗證使用者
+    return [UserPublic.model_validate(user) for user in users]
+
+
+async def verify_user(db: AsyncIOMotorDatabase, user_id: str) -> UserPublic:
+    """
+    Sets a user's 'verified' status to True.
+    """
+    user_to_verify = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user_to_verify:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found.")
+
+    updated_user = await db.users.find_one_and_update(
+        {"_id": ObjectId(user_id)}, {"$set": {"verified": True}}, return_document=ReturnDocument.AFTER
+    )
+
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update user.")
+
+    return UserPublic.model_validate(updated_user)
 
 
 async def get_group_details(db: AsyncIOMotorDatabase, group_id: str, current_user: UserInDB) -> GroupPublic:

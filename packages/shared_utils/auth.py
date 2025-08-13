@@ -45,3 +45,15 @@ async def get_current_user(
         raise credentials_exception
 
     return UserInDB.model_validate(user)
+
+
+async def get_current_admin_user(current_user: UserInDB = Depends(get_current_user)) -> UserInDB:
+    """
+    Dependency to check if the current user is the admin.
+    """
+    if current_user.email != settings.ADMIN_EMAIL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action.",
+        )
+    return current_user

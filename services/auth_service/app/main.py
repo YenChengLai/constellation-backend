@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from packages.shared_models.models import UserInDB
-from packages.shared_utils.auth import get_current_user
+from packages.shared_utils.auth import get_current_admin_user, get_current_user
 
 # This import will now work correctly!
 from packages.shared_utils.database import close_mongo_connection, connect_to_mongo, get_db
@@ -20,10 +20,12 @@ from .auth_logic import (
     create_user,
     get_group_details,
     list_groups_for_user,
+    list_unverified_users,
     login_user,
     logout_user,
     refresh_access_token,
     remove_member_from_group,
+    verify_user,
 )
 
 # Import from our own modules
@@ -186,3 +188,26 @@ async def remove_group_member(
         db=db, group_id=group_id, member_id=member_id, current_user=current_user
     )
     return updated_group
+
+
+# --- Admin Endpoints ---
+
+
+@app.get("/admin/users/unverified", response_model=list[UserPublic], tags=["Admin"])
+async def get_unverified_users(
+    db: AsyncIOMotorDatabase = Depends(get_db), admin_user: UserInDB = Depends(get_current_admin_user)
+):
+    """
+    Get a list of all unverified users. Requires admin privileges.
+    """
+    return await list_unverified_users(db=db)
+
+
+@app.patch("/admin/users/{user_id}/verify", response_model=UserPublic, tags=["Admin"])
+async def verify_a_user(
+    user_id: str, db: AsyncIOMotorDatabase = Depends(get_db), admin_user: UserInDB = Depends(get_current_admin_user)
+):
+    """
+    Verify a user, setting their 'verified' status to true. Requires admin privileges.
+    """
+    return await verify_user(db=db, user_id=user_id)
