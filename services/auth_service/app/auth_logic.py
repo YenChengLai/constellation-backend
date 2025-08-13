@@ -14,6 +14,7 @@ from packages.shared_models.models import UserInDB
 from .config import settings
 from .models import (
     AddMemberRequest,
+    ChangePasswordRequest,
     GroupCreate,
     GroupPublic,
     LoginRequest,
@@ -22,6 +23,7 @@ from .models import (
     TokenResponse,
     UserInGroup,
     UserPublic,
+    UserUpdateRequest,
 )
 
 
@@ -191,6 +193,55 @@ async def list_groups_for_user(db: AsyncIOMotorDatabase, current_user: UserInDB)
         populated_groups.append(GroupPublic.model_validate(group))
 
     return populated_groups
+
+
+async def update_user_profile(
+    db: AsyncIOMotorDatabase, current_user: UserInDB, update_data: UserUpdateRequest
+) -> UserPublic:
+    """Updates the profile for the current user."""
+    update_doc = update_data.model_dump(exclude_unset=True)
+
+    if not update_doc:
+        # 如果沒有傳入任何要更新的資料，直接回傳當前使用者資訊
+        return UserPublic.model_validate(current_user)
+
+    update_doc["updated_at"] = datetime.now(timezone.utc)
+
+    updated_user = await db.users.find_one_and_update(
+        {"_id": ObjectId(current_user.id)}, {"$set": update_doc}, return_document=ReturnDocument.AFTER
+    )
+
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    return UserPublic.model_validate(updated_user)
+
+
+async def change_user_password(
+    db: AsyncIOMotorDatabase, current_user: UserInDB, password_data: ChangePasswordRequest
+) -> None:
+    """
+    Changes the current user's password after verifying the old one.
+    Also invalidates all other active sessions for the user.
+    """
+    # 1. 驗證當前密碼是否正確
+    if not verify_password(password_data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect current password.",
+        )
+
+    # 2. 將新密碼進行雜湊
+    new_hashed_password = hash_password(password_data.new_password)
+
+    # 3. 更新資料庫中的密碼
+    await db.users.update_one({"_id": ObjectId(current_user.id)}, {"$set": {"hashed_password": new_hashed_password}})
+
+    # 4. (安全最佳實踐) 密碼變更後，刪除該使用者所有的 refresh token session，
+    #    強制所有其他裝置重新登入。
+    await db.sessions.delete_many({"user_id": ObjectId(current_user.id)})
+
+    return
 
 
 async def list_unverified_users(db: AsyncIOMotorDatabase) -> list[UserPublic]:

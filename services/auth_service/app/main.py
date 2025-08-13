@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from packages.shared_models.models import UserInDB
+from packages.shared_models.models import UserInDB, UserPublic
 from packages.shared_utils.auth import get_current_admin_user, get_current_user
 
 # This import will now work correctly!
@@ -16,6 +16,7 @@ from packages.shared_utils.database import close_mongo_connection, connect_to_mo
 
 from .auth_logic import (
     add_member_to_group,
+    change_user_password,
     create_group,
     create_user,
     get_group_details,
@@ -25,6 +26,7 @@ from .auth_logic import (
     logout_user,
     refresh_access_token,
     remove_member_from_group,
+    update_user_profile,
     verify_user,
 )
 
@@ -32,13 +34,14 @@ from .auth_logic import (
 from .config import settings
 from .models import (
     AddMemberRequest,
+    ChangePasswordRequest,
     GroupCreate,
     GroupPublic,
     LoginRequest,
     RefreshTokenRequest,
     SignupRequest,
     TokenResponse,
-    UserPublic,
+    UserUpdateRequest,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -127,6 +130,36 @@ async def logout(token_data: RefreshTokenRequest, db: AsyncIOMotorDatabase = Dep
     Endpoint to log out a user by invalidating their refresh token.
     """
     await logout_user(db=db, refresh_token_data=token_data)
+    return
+
+
+@app.get("/users/me", response_model=UserPublic, tags=["Users"])
+async def read_users_me(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Get the complete profile for the currently authenticated user.
+    """
+    # 因為 UserPublic 繼承自 UserInDB，Pydantic 可以直接處理轉換
+    return current_user
+
+
+@app.patch("/users/me", response_model=UserPublic, tags=["Users"])
+async def update_current_user_profile(
+    update_data: UserUpdateRequest,
+    current_user: UserInDB = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Update the current authenticated user's profile."""
+    return await update_user_profile(db=db, current_user=current_user, update_data=update_data)
+
+
+@app.post("/users/me/change-password", status_code=status.HTTP_204_NO_CONTENT, tags=["Users"])
+async def update_current_user_password(
+    password_data: ChangePasswordRequest,
+    current_user: UserInDB = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Change the current authenticated user's password."""
+    await change_user_password(db=db, current_user=current_user, password_data=password_data)
     return
 
 

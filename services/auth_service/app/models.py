@@ -4,6 +4,8 @@ from typing import Annotated
 from bson import ObjectId
 from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, computed_field
 
+from packages.shared_models.models import UserPublic
+
 
 # --- Custom Type Annotation ---
 # This is a function that Pydantic will run BEFORE trying to validate the field.
@@ -32,31 +34,23 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class UserUpdateRequest(BaseModel):
+    """Model for user profile updates. All fields are optional."""
+
+    first_name: str | None = Field(default=None, min_length=1, max_length=50)
+    last_name: str | None = Field(default=None, min_length=1, max_length=50)
+
+
 # --- Response Models ---
-
-
-class UserPublic(BaseModel):
-    # Apply our new custom type to the user_id field.
-    internal_id: PyObjectId = Field(alias="_id", exclude=True)
-    email: EmailStr
-    first_name: str | None = None
-    last_name: str | None = None
-    verified: bool
-    created_at: datetime
-
-    @computed_field
-    @property
-    def user_id(self) -> str:
-        return self.internal_id
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-    )
 
 
 class TokenResponse(BaseModel):
