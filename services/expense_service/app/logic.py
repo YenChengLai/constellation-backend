@@ -35,7 +35,7 @@ async def create_transaction(
         {
             "$and": [
                 {"_id": ObjectId(transaction_data.category_id)},
-                {"$or": [{"user_id": ObjectId(current_user.id)}, {"user_id": None}]},
+                {"$or": [{"user_id": ObjectId(current_user._id)}, {"user_id": None}]},
             ]
         }
     )
@@ -48,7 +48,6 @@ async def create_transaction(
     embedded_category = CategoryEmbedded.model_validate(category)
     now = datetime.now(timezone.utc)
     transaction_doc = transaction_data.model_dump()
-
     if transaction_doc.get("group_id"):
         transaction_doc["group_id"] = ObjectId(transaction_doc["group_id"])
     if transaction_doc.get("payer_id"):
@@ -56,7 +55,7 @@ async def create_transaction(
 
     transaction_doc.update(
         {
-            "user_id": ObjectId(current_user.id),
+            "user_id": ObjectId(current_user._id),
             "category": embedded_category.model_dump(by_alias=True),
             "created_at": now,
             "updated_at": now,
@@ -66,7 +65,7 @@ async def create_transaction(
     if "payer_id" not in transaction_doc or transaction_doc["payer_id"] is None:
         # 如果前端沒有傳 payer_id (例如在個人帳本模式下)，
         # 我們預設支付者就是當前使用者
-        transaction_doc["payer_id"] = ObjectId(current_user.id)
+        transaction_doc["payer_id"] = ObjectId(current_user._id)
 
     # 驗證 payer_id 的權限
     # 如果是群組交易，要確認 payer 是群組成員
@@ -81,7 +80,7 @@ async def create_transaction(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Payer is not a member of this group.")
     else:
         # 如果是個人交易，payer 必須是自己
-        if transaction_doc["payer_id"] != ObjectId(current_user.id):
+        if transaction_doc["payer_id"] != ObjectId(current_user._id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Payer must be the current user for personal transactions.",
@@ -105,17 +104,17 @@ async def list_transactions(
     start_of_month = datetime(year, month, 1, tzinfo=timezone.utc)
     start_of_next_month = start_of_month + relativedelta(months=1)
     query = {
-        "user_id": ObjectId(current_user.id),
+        "user_id": ObjectId(current_user._id),
         "transaction_date": {"$gte": start_of_month, "$lt": start_of_next_month},
     }
 
     if group_id:
-        group = await db.groups.find_one({"_id": ObjectId(group_id), "members": ObjectId(current_user.id)})
+        group = await db.groups.find_one({"_id": ObjectId(group_id), "members": ObjectId(current_user._id)})
         if not group:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not in this group.")
         query["group_id"] = ObjectId(group_id)
     else:
-        query["user_id"] = ObjectId(current_user.id)
+        query["user_id"] = ObjectId(current_user._id)
         query["group_id"] = None
 
     transactions_cursor = db.transactions.find(query).sort("transaction_date", -1)
@@ -131,7 +130,7 @@ async def update_transaction(
 ) -> TransactionPublic:
     """Updates a transaction for the current user."""
     transaction_to_update = await db.transactions.find_one(
-        {"_id": ObjectId(transaction_id), "user_id": ObjectId(current_user.id)}
+        {"_id": ObjectId(transaction_id), "user_id": ObjectId(current_user._id)}
     )
     if not transaction_to_update:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found.")
@@ -143,7 +142,7 @@ async def update_transaction(
             {
                 "$and": [
                     {"_id": new_category_id_obj},
-                    {"$or": [{"user_id": ObjectId(current_user.id)}, {"user_id": None}]},
+                    {"$or": [{"user_id": ObjectId(current_user._id)}, {"user_id": None}]},
                 ]
             }
         )
@@ -152,7 +151,7 @@ async def update_transaction(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Category with id {update_data.category_id} not accessible.",
             )
-        update_doc["category"] = CategoryEmbedded.model_validate(category).model_dump(by_alias=True)
+        update_doc["category"] = category
         del update_doc["category_id"]
 
     if update_doc:
@@ -193,7 +192,7 @@ async def get_transaction_summary(
         if group_id:
             match_criteria["group_id"] = ObjectId(group_id)
         else:
-            match_criteria["user_id"] = ObjectId(current_user.id)
+            match_criteria["user_id"] = ObjectId(current_user._id)
             match_criteria["group_id"] = None
 
         pipeline = [
@@ -228,7 +227,7 @@ async def get_transaction_summary(
 
 async def delete_transaction(db: AsyncIOMotorDatabase, transaction_id: str, current_user: UserInDB):
     """Deletes a transaction for the current user."""
-    result = await db.transactions.delete_one({"_id": ObjectId(transaction_id), "user_id": ObjectId(current_user.id)})
+    result = await db.transactions.delete_one({"_id": ObjectId(transaction_id), "user_id": ObjectId(current_user._id)})
     if result.deleted_count == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -245,7 +244,7 @@ async def create_category(
 ) -> CategoryPublic:
     """Creates a new category for the current user."""
     existing_category = await db.categories.find_one(
-        {"name": category_data.name, "type": category_data.type, "user_id": ObjectId(current_user.id)}
+        {"name": category_data.name, "type": category_data.type, "user_id": ObjectId(current_user._id)}
     )
     if existing_category:
         raise HTTPException(
@@ -254,7 +253,7 @@ async def create_category(
         )
 
     category_doc = category_data.model_dump()
-    category_doc["user_id"] = ObjectId(current_user.id)
+    category_doc["user_id"] = ObjectId(current_user._id)
     result = await db.categories.insert_one(category_doc)
     created_category = await db.categories.find_one({"_id": result.inserted_id})
     if not created_category:
@@ -267,7 +266,7 @@ async def list_categories(
     db: AsyncIOMotorDatabase, current_user: UserInDB, category_type: Literal["expense", "income"] | None
 ) -> list[CategoryPublic]:
     """Lists categories available to the user (theirs + defaults)."""
-    query = {"$or": [{"user_id": ObjectId(current_user.id)}, {"user_id": None}]}
+    query = {"$or": [{"user_id": ObjectId(current_user._id)}, {"user_id": None}]}
     if category_type:
         query["type"] = category_type
 
@@ -282,7 +281,7 @@ async def update_category(
     """更新一個使用者自訂的分類。"""
     # 安全檢查：確保分類存在，且屬於當前使用者 (不允許修改預設分類)
     category_to_update = await db.categories.find_one(
-        {"_id": ObjectId(category_id), "user_id": ObjectId(current_user.id)}
+        {"_id": ObjectId(category_id), "user_id": ObjectId(current_user._id)}
     )
     if not category_to_update:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found or permission denied.")
@@ -304,13 +303,13 @@ async def update_category(
 async def delete_category(db: AsyncIOMotorDatabase, category_id: str, current_user: UserInDB):
     """Deletes a user-defined category."""
     category_to_delete = await db.categories.find_one(
-        {"_id": ObjectId(category_id), "user_id": ObjectId(current_user.id)}
+        {"_id": ObjectId(category_id), "user_id": ObjectId(current_user._id)}
     )
     if not category_to_delete:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found.")
 
     transaction_using_category = await db.transactions.find_one(
-        {"category._id": ObjectId(category_id), "user_id": ObjectId(current_user.id)}
+        {"category._id": ObjectId(category_id), "user_id": ObjectId(current_user._id)}
     )
     if transaction_using_category:
         raise HTTPException(

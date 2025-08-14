@@ -9,7 +9,7 @@ from jose import jwt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
-from packages.shared_models.models import UserInDB
+from packages.shared_models.models import UserInDB, UserPublic
 
 from .config import settings
 from .models import (
@@ -22,7 +22,6 @@ from .models import (
     SignupRequest,
     TokenResponse,
     UserInGroup,
-    UserPublic,
     UserUpdateRequest,
 )
 
@@ -45,7 +44,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(user: UserInDB) -> str:
     """Creates a short-lived Access Token."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode = {"sub": str(user.id), "email": user.email, "exp": expire, "type": "access"}
+    to_encode = {"sub": str(user._id), "email": user.email, "exp": expire, "type": "access"}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -97,7 +96,7 @@ async def login_user(db: AsyncIOMotorDatabase, login_data: LoginRequest, request
     if not user_doc or not verify_password(login_data.password, user_doc["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    user = UserInDB.model_validate(user_doc)
+    user = UserInDB.model_validate(user_doc, by_alias=True)
 
     if not user.verified:
         raise HTTPException(
@@ -106,6 +105,7 @@ async def login_user(db: AsyncIOMotorDatabase, login_data: LoginRequest, request
 
     access_token = create_access_token(user)
     refresh_token = await create_refresh_token(user, db, request)
+
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 

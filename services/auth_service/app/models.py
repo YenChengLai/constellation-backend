@@ -2,9 +2,9 @@ from datetime import datetime
 from typing import Annotated
 
 from bson import ObjectId
-from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, computed_field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field
 
-from packages.shared_models.models import UserPublic
+from packages.shared_models.models import PyObjectId
 
 
 # --- Custom Type Annotation ---
@@ -73,6 +73,10 @@ class SessionInDB(BaseModel):
         populate_by_name=True,
     )
 
+    @property
+    def _id(self) -> PyObjectId:
+        return self.id
+
 
 # --- Group Models ---
 class GroupBase(BaseModel):
@@ -86,13 +90,9 @@ class GroupCreate(BaseModel):
 class UserInGroup(BaseModel):
     """A simplified user model for embedding in group responses."""
 
-    id: PyObjectId = Field(alias="_id")
+    _id: PyObjectId
     email: EmailStr
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-    )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class AddMemberRequest(BaseModel):
@@ -100,25 +100,16 @@ class AddMemberRequest(BaseModel):
 
 
 class GroupPublic(BaseModel):
-    internal_id: PyObjectId = Field(alias="_id", exclude=True)
+    _id: PyObjectId
     name: str
     owner_id: PyObjectId
     members: list[UserInGroup]
     created_at: datetime
-
-    @computed_field
-    @property
-    def id(self) -> str:
-        return self.internal_id
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-    )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class GroupInDB(BaseModel):
-    id: PyObjectId = Field(alias="_id")
+    _id: PyObjectId
     name: str
     owner_id: PyObjectId
     members: list[PyObjectId]
