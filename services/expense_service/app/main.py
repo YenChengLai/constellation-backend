@@ -13,22 +13,29 @@ from packages.shared_utils.auth import get_current_user
 from packages.shared_utils.database import close_mongo_connection, connect_to_mongo, get_db
 
 from .logic import (
+    archive_account,
+    create_account,
     create_category,
     create_transaction,
     delete_category,
     delete_transaction,
     get_transaction_summary,
+    list_accounts,
     list_categories,
     list_transactions,
+    update_account,
     update_category,
     update_transaction,
 )
 from .models import (
+    AccountCreate,
+    AccountPublic,
     CategoryCreate,
     CategoryPublic,
     CreateTransactionRequest,
     TransactionPublic,
     TransactionSummaryResponse,
+    UpdateAccountRequest,
     UpdateCategoryRequest,
     UpdateTransactionRequest,
 )
@@ -57,6 +64,55 @@ app.add_middleware(
 @app.get("/health", tags=["System"])
 def health_check():
     return {"status": "OK", "service": "Expense Service"}
+
+
+# --- Accounts Endpoints ---
+
+
+@app.post("/accounts", response_model=AccountPublic, status_code=status.HTTP_201_CREATED, tags=["Accounts"])
+async def add_new_account(
+    account_data: AccountCreate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Create a new account for a user or a group."""
+    new_account = await create_account(db=db, account_data=account_data, current_user=current_user)
+    return new_account
+
+
+@app.get("/accounts", response_model=list[AccountPublic], tags=["Accounts"])
+async def get_user_accounts(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """List all active accounts for the authenticated user."""
+    accounts = await list_accounts(db=db, current_user=current_user)
+    return accounts
+
+
+@app.patch("/accounts/{account_id}", response_model=AccountPublic, tags=["Accounts"])
+async def update_existing_account(
+    account_id: str,
+    update_data: UpdateAccountRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Update an account's name or archive status."""
+    updated_account = await update_account(
+        db=db, account_id=account_id, update_data=update_data, current_user=current_user
+    )
+    return updated_account
+
+
+@app.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Accounts"])
+async def archive_existing_account(
+    account_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Archive an account. The account balance must be zero."""
+    await archive_account(db=db, account_id=account_id, current_user=current_user)
+    return
 
 
 # --- Transactions Endpoints ---
